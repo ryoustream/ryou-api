@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const gogo = require('../scrapers/gogoanime');
+const allanime = require('../scrapers/allanime');
 const mapper = require('../scrapers/mapper');
 const anilist = require('../scrapers/anilist');
 const cache = require('../utils/cache');
@@ -9,34 +10,48 @@ router.get('/sources/:anilistId', async (req, res, next) => {
   try {
     const { anilistId } = req.params;
     const ep = Number(req.query.ep) || 1;
-    const cacheKey = `sources_${anilistId}_ep${ep}`;
+    const cacheKey = `src_${anilistId}_ep${ep}`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    // Get anime info
     const info = await anilist.getInfo(anilistId);
     if (!info) return res.status(404).json({ error: 'Anime not found' });
 
-    // Map to Gogo ID
-    const gogoId = await mapper.getGogoId(anilistId, info.title, info.title_alt);
-    if (!gogoId) {
-      return res.json({ ep, sources: [], message: 'Anime tidak ditemukan di sumber video' });
+    let sources = [];
+
+    // ===== TRY 1: AllAnime =====
+    try {
+      const allaId = await mapper.getAllAnimeId(anilistId, info.title, info.title_alt);
+      if (allaId) {
+        sources = await allanime.getEpisodeSources(allaId, ep);
+      }
+    } catch (e) {
+      console.warn('[EP] AllAnime failed:', e.message);
     }
 
-    // Get episode list
-    const gogoInfo = await gogo.getInfo(gogoId);
-    const epData = gogoInfo.episodes.find(e => e.ep === ep);
-    if (!epData) {
-      // Try with episode id pattern: gogoId-episode-N
-      const guessId = `${gogoId}-episode-${ep}`;
-      const sources = await gogo.getSources(guessId);
-      const result = { ep, gogoId, sources };
-      if (sources.length) cache.set(cacheKey, result, cache.TTL.SHORT);
-      return res.json(result);
+    // ===== TRY 2: Gogoanime =====
+    if (!sources.length) {
+      try {
+        const gogoId = await mapper.getGogoId(anilistId, info.title, info.title_alt);
+        if (gogoId) {
+          const gogoInfo = await gogo.getInfo(gogoId);
+          const epData = gogoInfo.episodes.find(e => e.ep === ep)
+            || { id: `${gogoId}-episode-${ep}` };
+          sources = await gogo.getSources(epData.id);
+        }
+      } catch (e) {
+        console.warn('[EP] Gogo failed:', e.message);
+      }
     }
 
-    const sources = await gogo.getSources(epData.id);
-    const result = { ep, gogoId, episodeId: epData.id, sources };
+    const result = {
+      ep,
+      animeId: anilistId,
+      title: info.title,
+      sources,
+      message: sources.length ? undefined : 'Sumber video tidak ditemukan saat ini. Coba beberapa saat lagi.',
+    };
+
     if (sources.length) cache.set(cacheKey, result, cache.TTL.SHORT);
     res.json(result);
   } catch (e) { next(e); }
@@ -53,15 +68,19 @@ router.get('/list/:anilistId', async (req, res, next) => {
     const info = await anilist.getInfo(anilistId);
     if (!info) return res.status(404).json({ error: 'Not found' });
 
-    const gogoId = await mapper.getGogoId(anilistId, info.title, info.title_alt);
     let episodes = [];
+    let gogoId = null;
 
-    if (gogoId) {
-      const gogoInfo = await gogo.getInfo(gogoId).catch(() => ({ episodes: [] }));
-      episodes = gogoInfo.episodes;
-    }
+    // Try Gogo first for episode list (more reliable for count)
+    try {
+      gogoId = await mapper.getGogoId(anilistId, info.title, info.title_alt);
+      if (gogoId) {
+        const gogoInfo = await gogo.getInfo(gogoId);
+        episodes = gogoInfo.episodes;
+      }
+    } catch {}
 
-    // Fallback dari total_eps AniList
+    // Fallback: generate from AniList total_eps
     if (!episodes.length && info.total_eps) {
       episodes = Array.from({ length: info.total_eps }, (_, i) => ({ ep: i + 1 }));
     }

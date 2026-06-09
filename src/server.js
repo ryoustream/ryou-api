@@ -16,6 +16,7 @@ app.use(express.json());
 app.use('/anime', require('./routes/anime'));
 app.use('/episode', require('./routes/episode'));
 app.use('/live', require('./routes/live'));
+app.use('/test', require('./routes/test'));
 
 // Health check
 app.get('/', (req, res) => {
