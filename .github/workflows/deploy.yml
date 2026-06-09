@@ -1,0 +1,37 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        run: |
+          curl -s -X POST \
+            "https://api.vercel.com/v13/deployments?teamId=team_rxlGnhaRq84yFuOocEL9hRZ0" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "ryounime",
+              "project": "prj_2DmXT3DEvVoFVJ5HMAR7o1Meh1qC",
+              "gitSource": {
+                "type": "github",
+                "repoId": "1261016891",
+                "ref": "main"
+              },
+              "target": "production"
+            }' | python3 -c "
+          import json,sys
+          d=json.loads(sys.stdin.read())
+          print('Deploy ID:', d.get('id',''))
+          print('State:', d.get('readyState',''))
+          print('URL:', d.get('url',''))
+          err = d.get('error',{})
+          if err: print('Error:', err.get('message',''))
+          "
