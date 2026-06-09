@@ -227,15 +227,16 @@ async function getFeatured(limit = 5) {
   const data = await query(`
     query($limit: Int) {
       Page(page: 1, perPage: $limit) {
-        media(sort: TRENDING_DESC, type: ANIME, isAdult: false, status: RELEASING, bannerImage_not: null) {
+        media(sort: TRENDING_DESC, type: ANIME, isAdult: false, status: RELEASING) {
           ${MEDIA_FIELDS}
         }
       }
     }
-  `, { limit });
+  `, { limit: limit * 3 });
 
   const result = data.data.Page.media
     .filter(m => m.bannerImage)
+    .slice(0, limit)
     .map((m, i) => ({ ...formatAnime(m), featured: true, featured_order: i + 1 }));
 
   cache.set(key, result, cache.TTL.MEDIUM);
