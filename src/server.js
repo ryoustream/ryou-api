@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 
-// CORS — explicit untuk Vercel serverless
+// CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Ryou API',
-    version: '1.0.0',
+    version: '1.1.0',
     endpoints: [
       'GET /anime/search?q=',
       'GET /anime/trending',
@@ -34,6 +34,9 @@ app.get('/', (req, res) => {
       'GET /episode/sources/:id?ep=',
       'GET /episode/list/:id',
       'GET /live/channels',
+      'GET /test/allanime?q=',
+      'GET /test/sources?id=&ep=',
+      'GET /test/ping?url=',
     ]
   });
 });
@@ -44,6 +47,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Ryou API :${PORT}`));
+app.listen(PORT, () => console.log(`Ryou API v1.1.0 :${PORT}`));
 
 module.exports = app;
