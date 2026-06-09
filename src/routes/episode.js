@@ -92,3 +92,20 @@ router.get('/list/:anilistId', async (req, res, next) => {
 });
 
 module.exports = router;
+
+// GET /episode/embed/:anilistId?ep=1
+// Returns embed URLs yang bisa langsung di-iframe di browser
+router.get('/embed/:anilistId', async (req, res, next) => {
+  try {
+    const { anilistId } = req.params;
+    const ep = Number(req.query.ep) || 1;
+
+    const info = await anilist.getInfo(anilistId);
+    if (!info) return res.status(404).json({ error: 'Not found' });
+
+    const { getEmbedUrls } = require('../scrapers/embedproviders');
+    const embeds = getEmbedUrls(info.idMal, info.title, ep);
+
+    res.json({ ep, title: info.title, malId: info.idMal, embeds });
+  } catch (e) { next(e); }
+});
